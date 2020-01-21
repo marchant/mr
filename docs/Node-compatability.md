@@ -27,8 +27,12 @@ There are some differences with the Node.js module system you should be aware
 of:
 
 - `dependencies` version predicates are ignored.
-- `__filename` and `__dirname` are not injected into module scope. Consider
-  using `module.location` and `module.directory` instead.
+
+//1/21/2020 the following is fixed, `__filename` and `__dirname` are now injected
+    - `__filename` and `__dirname` are not injected into module scope. Consider
+    using `module.location` and `module.directory` instead.
+
+
 - Because Mr cannot know if a URL points to a file or a directory, when you
   require a directory `index.js` is not sought. To make a package using an
   `index.js` compatible with Montage Require, add a `redirects` block to

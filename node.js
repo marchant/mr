@@ -74,7 +74,7 @@ Require.read = function read(location, module) {
 // Can be overriden by the platform to make the engine aware of the source path. Uses sourceURL hack by default.
 Require.Compiler = function Compiler(config) {
     config.scope = config.scope || {};
-    var names = ["require", "exports", "module"];
+    var names = ["require", "exports", "module", "global", "__filename", "__dirname"];
     var scopeNames = Object.keys(config.scope);
     names.push.apply(names, scopeNames);
     return function (module) {
@@ -94,10 +94,19 @@ Require.Compiler = function Compiler(config) {
                 module.text +
                 "\n//*/\n})\n//@ sourceURL=" + module.location
             );
-            module.factory = function (require, exports, module) {
-                Array.prototype.push.apply(arguments, scopeNames.map(function (name) {
-                    return config.scope[name];
-                }));
+            module.factory = function (require, exports, module, global, __filename, __dirname) {
+                /*
+                    __filename and __dirname are passed starting with file://
+                    This not what's node default value is, so before eventually fixing this where it's sent
+                    we do it here for now
+                */
+               arguments[4] = __filename.substring(7);
+               arguments[5] = __dirname.substring(7);
+                if(scopeNames.length) {
+                    Array.prototype.push.apply(arguments, scopeNames.map(function (name) {
+                        return config.scope[name];
+                    }));
+                }
                 return factory.apply(this, arguments);
             };
             // new Function will have its body reevaluated at every call, hence using eval instead
