@@ -92,12 +92,12 @@
 
     var normalizePattern = /^(.*)\.js$/,
         normalizeIdCache = new Map();
-    function normalizeId(id) {
+    function normalizeId(id, config) {
         var result;
         if (!(result = normalizeIdCache.get(id))) {
             result = normalizePattern.exec(id);
             result = ( result ? result[1] : id);
-            normalizeIdCache.set(id, result);
+            normalizeIdCache.set(id, (config && config.mappings[id] ? id : result));
         }
         return result;
     }
@@ -377,29 +377,6 @@
         // The default "main" module of a package is 'index' by default.
         description.main = description.main || 'index';
 
-        // main, injects a definition for the main module, with
-        // only its path. makeRequire goes through special effort
-        // in deepLoad to re-initialize this definition with the
-        // loaded definition from the given path.
-        modules[""] = {
-            id: "",
-            redirect: normalizeId(resolve(description.main, "")),
-            location: config.location
-        };
-
-        //Deal with redirects
-        redirects = description.redirects;
-        if (redirects !== void 0) {
-            for (name in redirects) {
-                if (redirects.hasOwnProperty(name)) {
-                    modules[name] = {
-                        id: name,
-                        redirect: normalizeId(resolve(redirects[name], name)),
-                        location: URL.resolve(location, name)
-                    };
-                }
-            }
-        }
 
         // mappings, link this package to other packages.
         var mappings = description.mappings || {};
@@ -418,6 +395,30 @@
             );
         }
         config.mappings = mappings;
+
+        // main, injects a definition for the main module, with
+        // only its path. makeRequire goes through special effort
+        // in deepLoad to re-initialize this definition with the
+        // loaded definition from the given path.
+        modules[""] = {
+            id: "",
+            redirect: normalizeId(resolve(description.main, ""), config),
+            location: config.location
+        };
+
+        //Deal with redirects
+        redirects = description.redirects;
+        if (redirects !== void 0) {
+            for (name in redirects) {
+                if (redirects.hasOwnProperty(name)) {
+                    modules[name] = {
+                        id: name,
+                        redirect: normalizeId(resolve(redirects[name], name), config),
+                        location: URL.resolve(location, name)
+                    };
+                }
+            }
+        }
 
         return config;
     }
@@ -533,18 +534,40 @@
         // Ensures a module definition is loaded, compiled, analyzed
         var load = memoize(function (topId, viaId) {
             var module = getModuleDescriptor(topId);
-            return Promise.try(function () {
-                // if not already loaded, already instantiated, or
-                // configured as a redirection to another module
-                if (
-                    module.factory === void 0 &&
-                        module.exports === void 0 &&
-                            module.redirect === void 0
-                ) {
-                    //return Promise.try(config.load, [topId, module]);
-                    return config.load(topId, module);
-                }
+
+            /*
+                Equivallent to:
+
+                return Promise.try(function () {...});
+
+                without the need to be dependent on non-standard Promise.try method
+            */
+           return new Promise(function(resolve, reject) {
+                resolve((function () {
+                    // if not already loaded, already instantiated, or
+                    // configured as a redirection to another module
+                    if (
+                        module.factory === void 0 &&
+                            module.exports === void 0 &&
+                                module.redirect === void 0
+                    ) {
+                        //return Promise.try(config.load, [topId, module]);
+                        return config.load(topId, module);
+                    }
+                })());
             })
+            // return Promise.try(function () {
+            //     // if not already loaded, already instantiated, or
+            //     // configured as a redirection to another module
+            //     if (
+            //         module.factory === void 0 &&
+            //             module.exports === void 0 &&
+            //                 module.redirect === void 0
+            //     ) {
+            //         //return Promise.try(config.load, [topId, module]);
+            //         return config.load(topId, module);
+            //     }
+            // })
             .then(function () {
                 // compile and analyze dependencies
                 return config.compile(module).then(function () {
@@ -589,7 +612,7 @@
                         //     var dependees = iModule.dependees = iModule.dependees || {};
                         //     dependees[topId] = true;
                         // }
-                        if ((iPromise = deepLoad(normalizeId(resolve(depId, scopedTopId)), scopedTopId, scopedLoading))) {
+                        if ((iPromise = deepLoad(normalizeId(resolve(depId, scopedTopId), config), scopedTopId, scopedLoading))) {
                             /* jshint expr: true */
                             promises ? (promises.push ? promises.push(iPromise) :
                                 (promises = [promises, iPromise])) : (promises = iPromise);
@@ -728,7 +751,7 @@
 
             // Main synchronously executing "require()" function
             var require = function require(id) {
-                var topId = normalizeId(resolve(id, viaId));
+                var topId = normalizeId(resolve(id, viaId), config);
                 return getExports(topId, viaId);
             };
             require.viaId = viaId;
@@ -736,14 +759,14 @@
             // Asynchronous "require.async()" which ensures async executation
             // (even with synchronous loaders)
             require.async = function(id) {
-                var topId = normalizeId(resolve(id, viaId));
+                var topId = normalizeId(resolve(id, viaId), config);
                 return deepLoad(topId, viaId).then(function () {
                     return require(topId);
                 });
             };
 
             require.resolve = function (id) {
-                return normalizeId(resolve(id, viaId));
+                return normalizeId(resolve(id, viaId), config);
             };
 
             require.getModule = getModuleDescriptor; // XXX deprecated, use:
@@ -1370,7 +1393,7 @@
             module.directory     // __dirname
         );
 
-        return returnValue;
+        return returnValue;``
     };
 
 

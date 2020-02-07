@@ -7,4 +7,6 @@ test.assert(require('dot-js-ext') === 40, 'main with "." in module name and ".js
 
 test.assert(require('js-ext') === require("js-ext/a"), 'can require "main" without extension');
 
+test.assert(require('dot.js') === 50, 'package with .js in name and main with ".js" extension');
+
 test.print('DONE', 'info');
